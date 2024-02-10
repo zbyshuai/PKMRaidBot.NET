@@ -1165,9 +1165,10 @@ public class RotatingRaidBotSV : PokeRoutineExecutor9SV, ICountBot
         var embed = new EmbedBuilder()
         {
             Color = disband ? Color.Red : hatTrick ? Color.Purple : Color.Green,
-            Description = disband ? message : upnext ? Settings.RaidEmbedParameters[RotationCount].Title : raidstart ? "" : description,
+            //Description = disband ? message : upnext ? Settings.RaidEmbedParameters[RotationCount].Title : raidstart ? "" : description,
             ImageUrl = bytes.Length > 0 ? "attachment://zap.jpg" : default,
-        }.WithAuthor(new EmbedAuthorBuilder()
+        }
+        .WithAuthor(new EmbedAuthorBuilder()
         {
             IconUrl = teraurl,
             Name = disband ? $"**Raid canceled: [{TeraRaidCode}]**" : upnext && Settings.TotalRaidsToHost != 0 ? $"Preparing Raid {RaidCount}/{Settings.TotalRaidsToHost}" : upnext && Settings.TotalRaidsToHost == 0 ? $"Preparing Raid" : title,
@@ -1178,9 +1179,64 @@ public class RotatingRaidBotSV : PokeRoutineExecutor9SV, ICountBot
                    $"Raids: {RaidCount} | Wins: {WinCount} | Losses: {LossCount}\n" + disclaimer
         });
 
+        
+
+        // 添加正则表达式
+        // 定义正则表达式模式
+        string pattern = @"\*\*Raid Info:\*\*[\s\S]*?\*\*Moveset:\*\*[\s\S]*?\*\*Special Rewards:\*\*[\s\S]*";
+
+        // 使用正则表达式匹配
+        Match match = Regex.Match(description, pattern, RegexOptions.Singleline);
+
+        string raidInfo = "";
+        string moveset = "";
+        string specialRewards = "";
+
+        if (match.Success)
+        {
+            // 提取匹配到的内容
+            string matchedContent = match.Value.Trim();
+
+            // 使用正则表达式匹配单独的信息块
+            string raidInfoPattern = @"\*\*Raid Info:\*\*([\s\S]*?)\*\*Moveset:\*\*";
+            string movesetPattern = @"\*\*Moveset:\*\*([\s\S]*?)\*\*Special Rewards:\*\*";
+            string specialRewardsPattern = @"\*\*Special Rewards:\*\*([\s\S]*)";
+
+            // 提取各个部分的内容
+            Match raidInfoMatch = Regex.Match(matchedContent, raidInfoPattern);
+            Match movesetMatch = Regex.Match(matchedContent, movesetPattern);
+            Match specialRewardsMatch = Regex.Match(matchedContent, specialRewardsPattern);
+
+            if (raidInfoMatch.Success && movesetMatch.Success && specialRewardsMatch.Success)
+            {
+                // 输出提取到的信息
+                raidInfo = raidInfoMatch.Groups[1].Value.Trim();
+                moveset = movesetMatch.Groups[1].Value.Trim();
+                specialRewards = specialRewardsMatch.Groups[1].Value.Trim();
+            }
+        }
+        else
+        {
+            raidInfo = moveset = specialRewards = "未找到匹配的内容";
+        }
+
+        Log(description);
+
+        // 添加宝可梦信息
+        embed.AddField("**Raid Info**",raidInfo,true);
+
+        // 添加招式信息
+        embed.AddField("**Moveset:**",moveset,true);
+
+        // 添加占位信息
+        embed.AddField("** **","** **",true);
+
+        // 添加奖励信息
+        embed.AddField("**Special Rewards:**",specialRewards,true);
+
         if (!disband && names is null && !upnext)
         {
-            embed.AddField(Settings.IncludeCountdown ? $"**Raid Countdown: <t:{DateTimeOffset.Now.ToUnixTimeSeconds() + Settings.TimeToWait}:R>**" : $"**Waiting in lobby!**", $"Raid Code: {code}");
+            embed.AddField(Settings.IncludeCountdown ? $"**Raid Countdown: <t:{DateTimeOffset.Now.ToUnixTimeSeconds() + Settings.TimeToWait}:R>**" : $"**Waiting in lobby!**", $"Raid Code: {code}".Replace("\n",""),true);
         }
 
         if (!disband && names is not null && !upnext)
@@ -1198,8 +1254,11 @@ public class RotatingRaidBotSV : PokeRoutineExecutor9SV, ICountBot
                 });
             }
 
-            embed.AddField($"**Raid #{RaidCount} is starting!**", players);
+            embed.AddField($"**Raid #{RaidCount} is starting!**", players,true);
         }
+
+        // 添加占位信息
+        embed.AddField("** **","** **",true);
 
         var turl = string.Empty;
         var form = string.Empty;
@@ -1496,7 +1555,8 @@ public class RotatingRaidBotSV : PokeRoutineExecutor9SV, ICountBot
                     if (container.Encounters[i].ExtraMoves.Length != 0)
                     {
                         var extraMovesList = container.Encounters[i].ExtraMoves.Where(z => z != 0).Select(z => $"{strings.Move[z]}ㅤ{Environment.NewLine}");
-                        extramoves = string.Concat(extraMovesList.Take(extraMovesList.Count() - 1)).TrimEnd(Environment.NewLine.ToCharArray());
+                        extramoves = "**ExtraMoves:**\n";
+                        extramoves += string.Concat(extraMovesList.Take(extraMovesList.Count() - 1)).TrimEnd(Environment.NewLine.ToCharArray());
                         extramoves += extraMovesList.LastOrDefault()?.TrimEnd(Environment.NewLine.ToCharArray());
                     }
 
