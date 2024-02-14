@@ -1245,7 +1245,7 @@ public class RotatingRaidBotSV : PokeRoutineExecutor9SV, ICountBot
         Settings.RaidEmbedParameters2[RotationCount].PKMImg = turl;
         
         // 发送embed团战中的embed
-        if (raidstart)
+        if (raidstart || upnext || disband || hatTrick)
         {
             EchoUtil.RaidEmbed(bytes, fileName, embed);
         }
