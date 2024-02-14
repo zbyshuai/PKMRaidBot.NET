@@ -35,6 +35,8 @@ public class RotatingRaidSettingsSV : IBotStateSettings, ICountSettings
 
     [Category(Hosting), Description("Raid embed parameters.")]
     public List<RotatingRaidParameters> RaidEmbedParameters { get; set; } = new();
+    [Category(Hosting), Description("Raid embed parameters2.")]
+    public List<RotatingRaidParameters2> RaidEmbedParameters2 { get; set; } = new();
 
     [Category(Hosting), Description("Enter the total number of raids to host before the bot automatically stops. Default is 0 to ignore this setting.")]
     public int TotalRaidsToHost { get; set; } = 0;
@@ -86,6 +88,32 @@ public class RotatingRaidSettingsSV : IBotStateSettings, ICountSettings
             yield break;
         if (CompletedRaids != 0)
             yield return $"Started Raids: {CompletedRaids}";
+    }
+
+    public class RotatingRaidParameters2
+    {   
+        public override string ToString() => $"{Title}";
+        public bool ActiveInRotation { get; set; } = true;
+        public bool IsShiny { get; set; } = true;
+        public Species Species { get; set; } = Species.None;
+        public int SpeciesForm { get; set; } = 0;
+        public string Seed { get; set; } = "0";
+        public MoveType TeraType { get; set; } = MoveType.Any;
+        public string Title { get; set; } = string.Empty;
+        public string RaidInfo { get; set; } = "";
+        public string MovesInfo { get; set; } = "";
+        public string ExtraMovesInfo { get; set; } = "";
+        public string RewardsInfo { get; set; } = "";
+        public string CodeInfo { get; set; } = "";
+        public string PKMImg { get; set; } = "";
+        public string ScreenShotImg { get; set; } = "";
+        public int RaidCount { get; set; } = 0;
+        public int WinCount { get; set; } = 0;
+        public int LossCount { get; set; } = 0;
+        public string TeraTypeImg { get; set; } = "";
+        public DateTime StartTime { get; set; } = new();
+        
+        
     }
 
     public class RotatingRaidParameters

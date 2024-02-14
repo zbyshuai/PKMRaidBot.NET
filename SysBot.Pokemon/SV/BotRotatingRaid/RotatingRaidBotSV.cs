@@ -184,6 +184,7 @@ public class RotatingRaidBotSV : PokeRoutineExecutor9SV, ICountBot
     private void DirectorySearch(string sDir, string data)
     {
         Settings.RaidEmbedParameters.Clear();
+        Settings.RaidEmbedParameters2.Clear();
         string contents = File.ReadAllText(sDir);
         string[] moninfo = contents.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
         for (int i = 0; i < moninfo.Length; i++)
@@ -207,6 +208,15 @@ public class RotatingRaidBotSV : PokeRoutineExecutor9SV, ICountBot
                 PartyPK = [data],
             };
             Settings.RaidEmbedParameters.Add(param);
+
+            RotatingRaidSettingsSV.RotatingRaidParameters2 param2 = new()
+            {
+                Seed = monseed,
+                Title = montitle,
+                Species = TradeExtensions<PK9>.EnumParse<Species>(montitle),
+            };
+            Settings.RaidEmbedParameters2.Add(param2);
+
             Log($"Parameters generated from text file for {montitle}.");
         }
     }
@@ -243,6 +253,7 @@ public class RotatingRaidBotSV : PokeRoutineExecutor9SV, ICountBot
             {
                 Log($"Preparing parameter for {Settings.RaidEmbedParameters[RotationCount].Species}");
                 await ReadRaids(false, token).ConfigureAwait(false);
+                Settings.RaidEmbedParameters2[RotationCount].StartTime = StartTime;
             }
             else
                 Log($"Parameter for {Settings.RaidEmbedParameters[RotationCount].Species} has been set previously, skipping raid reads.");
@@ -525,6 +536,7 @@ public class RotatingRaidBotSV : PokeRoutineExecutor9SV, ICountBot
                 Settings.AddCompletedRaids();
                 Log($"We defeated {Settings.RaidEmbedParameters[RotationCount].Species}!");
                 WinCount++;
+                Settings.RaidEmbedParameters2[RotationCount].WinCount = WinCount;
                 if (trainers.Count > 0 && Settings.CatchLimit != 0)
                     ApplyPenalty(trainers);
 
@@ -538,6 +550,7 @@ public class RotatingRaidBotSV : PokeRoutineExecutor9SV, ICountBot
             {
                 Log("We lost the raid...");
                 LossCount++;
+                Settings.RaidEmbedParameters2[RotationCount].LossCount = LossCount;
             }
 
             if (Settings.LobbyOptions.LobbyMethodOptions == LobbyMethodOptions.SkipRaid)
@@ -1004,6 +1017,7 @@ public class RotatingRaidBotSV : PokeRoutineExecutor9SV, ICountBot
         await Task.Delay(5_000, token).ConfigureAwait(false);
 
         RaidCount++;
+        Settings.RaidEmbedParameters2[RotationCount].RaidCount = RaidCount;
         if (lobbyTrainers.Count == 0)
         {
             EmptyRaid++;
@@ -1145,6 +1159,7 @@ public class RotatingRaidBotSV : PokeRoutineExecutor9SV, ICountBot
             else
                 code = $"**{(Settings.RaidEmbedParameters[RotationCount].IsCoded && !Settings.HideRaidCode ? await GetRaidCode(token).ConfigureAwait(false) : Settings.RaidEmbedParameters[RotationCount].IsCoded && Settings.HideRaidCode ? "||Is Hidden!||" : "Free For All")}**";
             Hub.Config.Stream.GetRaidCodeAsset(code.Replace("*", ""));
+            Settings.RaidEmbedParameters2[RotationCount].CodeInfo = code.Replace("*", "").Replace("\n","");
         }
 
         if (EmptyRaid == Settings.LobbyOptions.EmptyRaidLimit && Settings.LobbyOptions.LobbyMethodOptions == LobbyMethodOptions.OpenLobby)
@@ -1160,13 +1175,21 @@ public class RotatingRaidBotSV : PokeRoutineExecutor9SV, ICountBot
         string disclaimer = Settings.RaidEmbedParameters.Count > 1 ? "Disclaimer: Raids are on rotation via seed injection.\n" : "";
         var teraurl = string.Empty;
         if (!upnext)
+        {
             teraurl = $"https://raw.githubusercontent.com/kwsch/PKHeX/master/PKHeX.Drawing.Misc/Resources/img/types/gem/gem_" + ((int)Settings.RaidEmbedParameters[RotationCount].TeraType < 10 ? $"0{(int)Settings.RaidEmbedParameters[RotationCount].TeraType}" : $"{(int)Settings.RaidEmbedParameters[RotationCount].TeraType}") + ".png";
+            Settings.RaidEmbedParameters2[RotationCount].TeraTypeImg = teraurl;
+        }
 
+        // 生成截图url
+        string ImageUrl = bytes.Length > 0 ? "attachment://zap.jpg" : default;      
+        Settings.RaidEmbedParameters2[RotationCount].ScreenShotImg = ImageUrl;
+
+        // 生成embed
         var embed = new EmbedBuilder()
         {
             Color = disband ? Color.Red : hatTrick ? Color.Purple : Color.Green,
-            //Description = disband ? message : upnext ? Settings.RaidEmbedParameters[RotationCount].Title : raidstart ? "" : description,
-            ImageUrl = bytes.Length > 0 ? "attachment://zap.jpg" : default,
+            Description = disband ? message : upnext ? Settings.RaidEmbedParameters[RotationCount].Title : raidstart ? "" : description,
+            ImageUrl = ImageUrl,
         }
         .WithAuthor(new EmbedAuthorBuilder()
         {
@@ -1180,86 +1203,6 @@ public class RotatingRaidBotSV : PokeRoutineExecutor9SV, ICountBot
         });
 
         
-
-        // 添加正则表达式
-        // 定义正则表达式模式
-        string pattern = @"\*\*Raid Info:\*\*[\s\S]*?\*\*Moveset:\*\*[\s\S]*?\*\*Special Rewards:\*\*[\s\S]*";
-
-        // 使用正则表达式匹配
-        Match match = Regex.Match(description, pattern, RegexOptions.Singleline);
-
-        string raidInfo = "";
-        string moveset = "";
-        string specialRewards = "";
-
-        if (match.Success)
-        {
-            // 提取匹配到的内容
-            string matchedContent = match.Value.Trim();
-
-            // 使用正则表达式匹配单独的信息块
-            string raidInfoPattern = @"\*\*Raid Info:\*\*([\s\S]*?)\*\*Moveset:\*\*";
-            string movesetPattern = @"\*\*Moveset:\*\*([\s\S]*?)\*\*Special Rewards:\*\*";
-            string specialRewardsPattern = @"\*\*Special Rewards:\*\*([\s\S]*)";
-
-            // 提取各个部分的内容
-            Match raidInfoMatch = Regex.Match(matchedContent, raidInfoPattern);
-            Match movesetMatch = Regex.Match(matchedContent, movesetPattern);
-            Match specialRewardsMatch = Regex.Match(matchedContent, specialRewardsPattern);
-
-            if (raidInfoMatch.Success && movesetMatch.Success && specialRewardsMatch.Success)
-            {
-                // 输出提取到的信息
-                raidInfo = raidInfoMatch.Groups[1].Value.Trim();
-                moveset = movesetMatch.Groups[1].Value.Trim();
-                specialRewards = specialRewardsMatch.Groups[1].Value.Trim();
-            }
-        }
-        else
-        {
-            raidInfo = moveset = specialRewards = "未找到匹配的内容";
-        }
-
-        Log(description);
-
-        // 添加宝可梦信息
-        embed.AddField("**Raid Info**",raidInfo,true);
-
-        // 添加招式信息
-        embed.AddField("**Moveset:**",moveset,true);
-
-        // 添加占位信息
-        embed.AddField("** **","** **",true);
-
-        // 添加奖励信息
-        embed.AddField("**Special Rewards:**",specialRewards,true);
-
-        if (!disband && names is null && !upnext)
-        {
-            embed.AddField(Settings.IncludeCountdown ? $"**Raid Countdown: <t:{DateTimeOffset.Now.ToUnixTimeSeconds() + Settings.TimeToWait}:R>**" : $"**Waiting in lobby!**", $"Raid Code: {code}".Replace("\n",""),true);
-        }
-
-        if (!disband && names is not null && !upnext)
-        {
-            var players = string.Empty;
-            if (names.Count == 0)
-                players = "Though our party did not make it :(";
-            else
-            {
-                int i = 2;
-                names.ForEach(x =>
-                {
-                    players += $"Player {i} - **{x}**\n";
-                    i++;
-                });
-            }
-
-            embed.AddField($"**Raid #{RaidCount} is starting!**", players,true);
-        }
-
-        // 添加占位信息
-        embed.AddField("** **","** **",true);
-
         var turl = string.Empty;
         var form = string.Empty;
 
@@ -1292,10 +1235,29 @@ public class RotatingRaidBotSV : PokeRoutineExecutor9SV, ICountBot
         if (Settings.RaidEmbedParameters[RotationCount].Species is 0)
             turl = "https://i.imgur.com/uHSaGGJ.png";
 
+        // 传入截图图片
         var fileName = $"raidecho{RotationCount}.jpg";
-        embed.ThumbnailUrl = turl;
+        Settings.RaidEmbedParameters2[RotationCount].ScreenShotImg = $"attachment://{fileName}";
         embed.WithImageUrl($"attachment://{fileName}");
-        EchoUtil.RaidEmbed(bytes, fileName, embed);
+
+        // 传入宝可梦图片
+        embed.ThumbnailUrl = turl;
+        Settings.RaidEmbedParameters2[RotationCount].PKMImg = turl;
+        
+        // 发送embed团战中的embed
+        if (raidstart)
+        {
+            EchoUtil.RaidEmbed(bytes, fileName, embed);
+        }
+        // 发送等待的embed
+        else
+        {
+            // 发送自己的embed
+            var template = new TemplateRaid(HostSAV, Hub, RotationCount);
+            var embed2 = template.Generate();
+            EchoUtil.RaidEmbed(bytes, fileName, embed2);
+        }
+
     }
 
     // From PokeTradeBotSV, modified.
@@ -1522,13 +1484,24 @@ public class RotatingRaidBotSV : PokeRoutineExecutor9SV, ICountBot
                 var set = uint.Parse(Settings.RaidEmbedParameters[a].Seed, NumberStyles.AllowHexSpecifier);
                 if (seed == set)
                 {
+                    // 获取奖励信息
                     var res = GetSpecialRewards(container.Rewards[i]);
                     if (string.IsNullOrEmpty(res))
+                    {
                         res = string.Empty;
+                    }
                     else
+                    {
+                        Settings.RaidEmbedParameters2[a].RewardsInfo = res;
                         res = "**Special Rewards:**\n" + res;
+                    }
+                        
+                    // 获取Seed信息
                     Log($"Seed {seed:X8} found for {(Species)container.Encounters[i].Species}");
                     Settings.RaidEmbedParameters[a].Seed = $"{seed:X8}";
+                    Settings.RaidEmbedParameters2[a].Seed = $"{seed:X8}";
+
+                    // 获取难度信息
                     var stars = container.Raids[i].IsEvent ? container.Encounters[i].Stars : RaidExtensions.GetStarCount(container.Raids[i], container.Raids[i].Difficulty, StoryProgress, container.Raids[i].IsBlack);
                     string starcount = string.Empty;
                     switch (stars)
@@ -1541,25 +1514,53 @@ public class RotatingRaidBotSV : PokeRoutineExecutor9SV, ICountBot
                         case 6: starcount = "6 ☆"; break;
                         case 7: starcount = "7 ☆"; break;
                     }
+
+                    // 获取其他信息
                     Settings.RaidEmbedParameters[a].IsShiny = container.Raids[i].IsShiny;
+                    Settings.RaidEmbedParameters2[a].IsShiny = container.Raids[i].IsShiny;
+
                     Settings.RaidEmbedParameters[a].CrystalType = container.Raids[i].IsBlack ? TeraCrystalType.Black : container.Raids[i].IsEvent && stars == 7 ? TeraCrystalType.Might : container.Raids[i].IsEvent ? TeraCrystalType.Distribution : TeraCrystalType.Base;
+
                     Settings.RaidEmbedParameters[a].Species = (Species)container.Encounters[i].Species;
+                    Settings.RaidEmbedParameters2[a].Species = (Species)container.Encounters[i].Species;
+
                     Settings.RaidEmbedParameters[a].SpeciesForm = container.Encounters[i].Form;
+                    Settings.RaidEmbedParameters2[a].SpeciesForm = container.Encounters[i].Form;
+
                     Settings.RaidEmbedParameters[a].TeraType = (MoveType)container.Raids[i].TeraType;
+                    Settings.RaidEmbedParameters2[a].TeraType = (MoveType)container.Raids[i].TeraType;
+
+                    // 获取宝可梦信息
                     var pkinfo = Hub.Config.StopConditions.GetRaidPrintName(pk);
                     pkinfo += $"\nTera Type: {(MoveType)container.Raids[i].TeraType}";
                     var strings = GameInfo.GetStrings(1);
+
+                    // 获取招式信息
                     var moves = new ushort[4] { container.Encounters[i].Move1, container.Encounters[i].Move2, container.Encounters[i].Move3, container.Encounters[i].Move4 };
                     var movestr = string.Concat(moves.Where(z => z != 0).Select(z => $"{strings.Move[z]}ㅤ{Environment.NewLine}")).TrimEnd(Environment.NewLine.ToCharArray());
+
+                    Settings.RaidEmbedParameters2[a].MovesInfo = movestr;
+
+                    // 获取额外招式信息
                     var extramoves = string.Empty;
                     if (container.Encounters[i].ExtraMoves.Length != 0)
                     {
                         var extraMovesList = container.Encounters[i].ExtraMoves.Where(z => z != 0).Select(z => $"{strings.Move[z]}ㅤ{Environment.NewLine}");
-                        extramoves = "**ExtraMoves:**\n";
+                        extramoves = "";
                         extramoves += string.Concat(extraMovesList.Take(extraMovesList.Count() - 1)).TrimEnd(Environment.NewLine.ToCharArray());
                         extramoves += extraMovesList.LastOrDefault()?.TrimEnd(Environment.NewLine.ToCharArray());
+
+                        Settings.RaidEmbedParameters2[a].ExtraMovesInfo = extramoves;
+
+                        extramoves = "**ExtraMoves:**\n" + extramoves;
+
+                        
                     }
 
+                    
+                    
+
+                    // 拼接信息
                     if (Settings.UsePresetFile)
                     {
                         string tera = $"{(MoveType)container.Raids[i].TeraType}";
@@ -1594,6 +1595,7 @@ public class RotatingRaidBotSV : PokeRoutineExecutor9SV, ICountBot
                         {
                             if (string.IsNullOrEmpty(Settings.RaidEmbedParameters[a].Title) || Settings.PresetFilters.ForceTitle)
                                 Settings.RaidEmbedParameters[a].Title = raidDescription[0];
+                                Settings.RaidEmbedParameters2[a].Title = raidDescription[0];
 
                             if (Settings.RaidEmbedParameters[a].Description == null || Settings.RaidEmbedParameters[a].Description.Length == 0 || Settings.RaidEmbedParameters[a].Description.All(string.IsNullOrEmpty) || Settings.PresetFilters.ForceDescription)
                                 Settings.RaidEmbedParameters[a].Description = raidDescription.Skip(1).ToArray();
@@ -1609,6 +1611,9 @@ public class RotatingRaidBotSV : PokeRoutineExecutor9SV, ICountBot
                     {
                         Settings.RaidEmbedParameters[a].Description = new[] { "\n**Raid Info:**", pkinfo, "\n**Moveset:**", movestr, extramoves, BaseDescription, res };
                         Settings.RaidEmbedParameters[a].Title = $"{(Species)container.Encounters[i].Species} {starcount} - {(MoveType)container.Raids[i].TeraType}";
+                        
+                        Settings.RaidEmbedParameters2[a].RaidInfo = pkinfo;
+                        Settings.RaidEmbedParameters2[a].Title = $"{(Species)container.Encounters[i].Species} {starcount} - {(MoveType)container.Raids[i].TeraType}";
                     }
 
                     Settings.RaidEmbedParameters[a].IsSet = true;
