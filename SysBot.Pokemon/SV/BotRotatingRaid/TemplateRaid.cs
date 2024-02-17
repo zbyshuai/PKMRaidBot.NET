@@ -62,7 +62,8 @@ public class TemplateRaid
         Text += $"Raids: {RaidCount} | Wins: {WinCount} | Losses: {LossCount}\n";
         Text += $"Disclaimer: Raids are on rotation via seed injection.\n";
 
-        return  new EmbedFooterBuilder { Text = Text };
+        string IconUrl = "https://i.postimg.cc/fR2gBJPm/Gatoraid.jpg";
+        return  new EmbedFooterBuilder { Text = Text , IconUrl = IconUrl };
     }
 
     private void SetFiled1_1(EmbedBuilder embed)
